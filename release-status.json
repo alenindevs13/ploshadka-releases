@@ -1,6 +1,24 @@
 {
-  "status": "running",
+  "status": "published",
   "tag": "v2.1",
   "run_id": "45665850276",
-  "workflow_url": "https://github.com/alenindevs13/ploshadka-releases/actions/runs/45665850276"
+  "workflow_url": "https://github.com/alenindevs13/ploshadka-releases/actions/runs/45665850276",
+  "release_url": "https://github.com/alenindevs13/ploshadka-releases/releases/tag/v2.1",
+  "assets": [
+    {
+      "name": "Ploshchadka-SPB-2.1.apk",
+      "size": 8370516,
+      "state": "uploaded",
+      "url": "https://github.com/alenindevs13/ploshadka-releases/releases/download/v2.1/Ploshchadka-SPB-2.1.apk",
+      "digest": "sha256:a0f53c5053062e4008cc189abb1ac632f892e7546e1a07114495a652a4a912c1"
+    },
+    {
+      "name": "SHA256SUMS.txt",
+      "size": 90,
+      "state": "uploaded",
+      "url": "https://github.com/alenindevs13/ploshadka-releases/releases/download/v2.1/SHA256SUMS.txt",
+      "digest": "sha256:b0ea0dcd920ed49362f6b848ae9968d776cc2cb9211f5057048dc0874778e4e1"
+    }
+  ],
+  "verified_sha256": "a0f53c5053062e4008cc189abb1ac632f892e7546e1a07114495a652a4a912c1"
 }
