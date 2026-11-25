@@ -1,0 +1,99 @@
+name: Publish Android release
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'Ploshchadka-SPB-2.1.apk'
+      - 'RELEASE_NOTES.md'
+      - 'SHA256SUMS.txt'
+      - '.github/workflows/publish-release.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: publish-v2.1
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      GH_TOKEN: ${{ github.token }}
+      RELEASE_REPOSITORY: ${{ github.repository }}
+      RELEASE_COMMIT: ${{ github.sha }}
+      RELEASE_RUN_ID: ${{ github.run_id }}
+    steps:
+      - name: Verify APK and publish v2.1
+        shell: python
+        run: |
+          import base64, hashlib, json, os, pathlib, subprocess, tempfile
+          repo = os.environ["RELEASE_REPOSITORY"]
+          commit = os.environ["RELEASE_COMMIT"]
+          run_id = os.environ["RELEASE_RUN_ID"]
+          tag = "v2.1"
+          apk_name = "Ploshchadka-SPB-2.1.apk"
+          expected_hash = "a0f53c5053062e4008cc189abb1ac632f892e7546e1a07114495a652a4a912c1"
+          work = pathlib.Path(tempfile.mkdtemp(prefix="ploshadka-release-"))
+          def gh(*args, check=True, stdout=None, data=None):
+              return subprocess.run(["gh", *args], input=data, stdout=stdout or subprocess.PIPE,
+                                    stderr=subprocess.PIPE, check=check)
+          def api(endpoint):
+              return json.loads(gh("api", endpoint).stdout)
+          def save_status(status, **extra):
+              receipt = {"status": status, "tag": tag, "run_id": run_id,
+                         "workflow_url": f"https://github.com/{repo}/actions/runs/{run_id}", **extra}
+              path = f"repos/{repo}/contents/release-status.json"
+              existing = gh("api", path, check=False)
+              payload = {"message": f"Release {tag}: {status}", "branch": "main",
+                         "content": base64.b64encode((json.dumps(receipt, ensure_ascii=False, indent=2) + "\n").encode()).decode()}
+              if existing.returncode == 0:
+                  payload["sha"] = json.loads(existing.stdout)["sha"]
+              gh("api", "--method", "PUT", path, "--input", "-", data=json.dumps(payload).encode())
+          try:
+              save_status("running")
+              for name in [apk_name, "RELEASE_NOTES.md", "SHA256SUMS.txt"]:
+                  with (work / name).open("wb") as output:
+                      gh("api", "-H", "Accept: application/vnd.github.raw+json",
+                         f"repos/{repo}/contents/{name}?ref={commit}", stdout=output)
+              if hashlib.sha256((work / apk_name).read_bytes()).hexdigest() != expected_hash:
+                  raise RuntimeError("APK checksum mismatch before upload")
+              existing = gh("api", f"repos/{repo}/releases/tags/{tag}", check=False)
+              already_public = False
+              if existing.returncode == 0:
+                  already_public = not json.loads(existing.stdout)["draft"]
+              else:
+                  if b"404" not in existing.stderr:
+                      raise RuntimeError(existing.stderr.decode(errors="replace"))
+                  gh("release", "create", tag, "--repo", repo, "--target", commit,
+                     "--title", "Площадка СПб 2.1", "--notes-file", str(work / "RELEASE_NOTES.md"), "--draft")
+              if not already_public:
+                  gh("release", "upload", tag, str(work / apk_name), str(work / "SHA256SUMS.txt"),
+                     "--repo", repo, "--clobber")
+              verification = work / "verify"
+              verification.mkdir()
+              gh("release", "download", tag, "--repo", repo, "--pattern", apk_name, "--dir", str(verification))
+              actual_hash = hashlib.sha256((verification / apk_name).read_bytes()).hexdigest()
+              if actual_hash != expected_hash:
+                  raise RuntimeError("Uploaded APK checksum mismatch")
+              if not already_public:
+                  gh("release", "edit", tag, "--repo", repo, "--draft=false", "--latest")
+              release = api(f"repos/{repo}/releases/tags/{tag}")
+              assets = [{"name": asset["name"], "size": asset["size"], "state": asset["state"],
+                         "url": asset["browser_download_url"], "digest": asset.get("digest")}
+                        for asset in release["assets"]]
+              if release["draft"] or not any(asset["name"] == apk_name and asset["state"] == "uploaded"
+                                             and asset["size"] == 8370516 for asset in assets):
+                  raise RuntimeError("Published release verification failed")
+              save_status("published", release_url=release["html_url"], assets=assets, verified_sha256=actual_hash)
+              print(release["html_url"])
+          except Exception as error:
+              try:
+                  save_status("failed", error=str(error))
+              except Exception as receipt_error:
+                  print(f"Could not save release status: {receipt_error}")
+              raise
+          
