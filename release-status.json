@@ -1,6 +1,7 @@
 {
-  "status": "running",
+  "status": "failed",
   "tag": "v2.1",
   "run_id": "45665661841",
-  "workflow_url": "https://github.com/alenindevs13/ploshadka-releases/actions/runs/45665661841"
+  "workflow_url": "https://github.com/alenindevs13/ploshadka-releases/actions/runs/45665661841",
+  "error": "Command '['gh', 'api', '-H', 'Accept: application/vnd.github.raw+json', 'repos/alenindevs13/ploshadka-releases/contents/Ploshchadka-SPB-2.1.apk?ref=734e01b73d997a1e44777b46dd8d7ce3e3656a33']' returned non-zero exit status 1."
 }
